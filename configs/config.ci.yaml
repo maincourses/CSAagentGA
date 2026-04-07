@@ -1,0 +1,33 @@
+# Default CI config for GitHub Actions runners.
+# Override by passing action input `config` with your own file.
+
+tools:
+  clang_sa: "clang"
+  clang_sa_checkers: []
+  libclang_path: ""
+
+llm:
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "API_KEY"
+  api_base: "https://api.openai.com/v1"
+  temperature: 0.0
+  max_tokens: 4096
+  timeout: 120
+  max_retries: 5
+  retry_base_delay: 2
+  retry_max_delay: 30
+
+agent:
+  max_steps: 8
+  confidence_threshold: 0.7
+
+analysis:
+  compile_args: ["-std=c++17"]
+  clang_sa_extra_args: []
+  file_extensions: [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"]
+  skip_dirs: ["build", "dist", "third_party", ".git"]
+
+report:
+  output_dir: "data/reports"
+  formats: ["json", "sarif"]

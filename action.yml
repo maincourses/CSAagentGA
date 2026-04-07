@@ -1,0 +1,113 @@
+name: "CSAagent Defect Scan"
+description: "Run CSAagent on a repository and emit JSON/SARIF reports."
+author: "maincourses"
+
+inputs:
+  src-dir:
+    description: "Source directory to scan."
+    required: false
+    default: "."
+  config:
+    description: "Path to config yaml. Empty means built-in CI config."
+    required: false
+    default: ""
+  compile-commands:
+    description: "Path to compile_commands.json (optional)."
+    required: false
+    default: ""
+  output-dir:
+    description: "Directory for generated reports."
+    required: false
+    default: "data/reports"
+  output-format:
+    description: "Formats separated by spaces or commas, e.g. 'json sarif'."
+    required: false
+    default: "json sarif"
+  fail-on:
+    description: "Fail policy: never|true_positive|uncertain|analyzer_failure|true_positive_or_uncertain|any_issue"
+    required: false
+    default: "never"
+  fail-confidence:
+    description: "Minimum confidence for fail policy checks."
+    required: false
+    default: "0.0"
+  api-key:
+    description: "LLM API key value. Exposed to config via API_KEY env."
+    required: false
+    default: ""
+
+outputs:
+  json-report:
+    description: "Path to latest JSON report file."
+    value: ${{ steps.run.outputs.json-report }}
+  sarif-report:
+    description: "Path to latest SARIF report file."
+    value: ${{ steps.run.outputs.sarif-report }}
+  summary-json:
+    description: "Path to machine-readable summary JSON."
+    value: ${{ steps.run.outputs.summary-json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install -r "${{ github.action_path }}/requirements.txt"
+
+    - name: Run CSAagent
+      id: run
+      shell: bash
+      env:
+        API_KEY: ${{ inputs.api-key }}
+      run: |
+        set -euo pipefail
+        SRC_DIR="${{ inputs.src-dir }}"
+        OUT_DIR="${{ inputs.output-dir }}"
+        SUMMARY_FILE="${OUT_DIR}/csa_summary.json"
+
+        if [ -z "${{ inputs.config }}" ]; then
+          CONFIG_PATH="${{ github.action_path }}/configs/config.ci.yaml"
+        else
+          CONFIG_PATH="${{ inputs.config }}"
+        fi
+
+        mkdir -p "${OUT_DIR}"
+
+        FORMAT_RAW="${{ inputs.output-format }}"
+        FORMAT_RAW="${FORMAT_RAW//,/ }"
+        read -r -a FORMATS <<< "${FORMAT_RAW}"
+
+        CMD=(
+          python "${{ github.action_path }}/main.py" "${SRC_DIR}"
+          --config "${CONFIG_PATH}"
+          --output-dir "${OUT_DIR}"
+          --summary-json "${SUMMARY_FILE}"
+          --ci
+          --fail-on "${{ inputs.fail-on }}"
+          --fail-confidence "${{ inputs.fail-confidence }}"
+        )
+
+        if [ -n "${{ inputs.compile-commands }}" ]; then
+          CMD+=(--compile-commands "${{ inputs.compile-commands }}")
+        fi
+
+        if [ "${#FORMATS[@]}" -gt 0 ]; then
+          CMD+=(--output-format "${FORMATS[@]}")
+        fi
+
+        "${CMD[@]}"
+
+        JSON_REPORT="$(ls -1t "${OUT_DIR}"/report_*.json 2>/dev/null | head -n1 || true)"
+        SARIF_REPORT="$(ls -1t "${OUT_DIR}"/report_*.sarif 2>/dev/null | head -n1 || true)"
+
+        echo "json-report=${JSON_REPORT}" >> "${GITHUB_OUTPUT}"
+        echo "sarif-report=${SARIF_REPORT}" >> "${GITHUB_OUTPUT}"
+        echo "summary-json=${SUMMARY_FILE}" >> "${GITHUB_OUTPUT}"
