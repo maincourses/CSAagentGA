@@ -24,14 +24,10 @@ agent:
   confidence_threshold: 0.7
 
 analysis:
-  compile_args: ["--std=c++20"]
-  clang_sa_extra_args:
-    - /FID:/projects/CSAagent/data/hxx/csa_force_include.hxx
-    - -UTEST_DATA_PATH
-    - '-DTEST_DATA_PATH="D:/allthings/GME/GME/GME/data"'
-    - -Dmkdir=_mkdir
+  compile_args: ["-std=c++20"]
+  clang_sa_extra_args: []
   file_extensions: [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"]
-  skip_dirs: ["build", "dist", "third_party", ".git"]
+  skip_dirs: ["build", "out", "dist", "third_party", ".git", ".ind_build", "download"]
 
 report:
   output_dir: "data/reports"
