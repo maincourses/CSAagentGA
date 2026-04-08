@@ -3,7 +3,7 @@ import os
 import csv
 import html as html_lib
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 from models.report import FinalReport, DefectReport
 
 
@@ -14,7 +14,7 @@ class ReportGenerator:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-    def generate(self, report: FinalReport, formats: List[str] = None, repo_root: str = "") -> List[str]:
+    def generate(self, report: FinalReport, formats: List[str] = None) -> List[str]:
         formats = formats or ["json", "html"]
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         generated_files = []
@@ -27,9 +27,6 @@ class ReportGenerator:
             generated_files.append(path)
         if "html" in formats:
             path = self._write_html(report, timestamp)
-            generated_files.append(path)
-        if "sarif" in formats:
-            path = self._write_sarif(report, timestamp, repo_root or report.project_path)
             generated_files.append(path)
 
         return generated_files
@@ -911,112 +908,6 @@ class ReportGenerator:
         )
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
-        return path
-
-    @staticmethod
-    def _to_repo_relative(path: str, repo_root: str) -> str:
-        if not path:
-            return ""
-        norm_path = os.path.abspath(path)
-        norm_root = os.path.abspath(repo_root) if repo_root else ""
-        if norm_root:
-            try:
-                rel = os.path.relpath(norm_path, norm_root)
-                if not rel.startswith(".."):
-                    return rel.replace("\\", "/")
-            except ValueError:
-                pass
-        return norm_path.replace("\\", "/")
-
-    @staticmethod
-    def _map_sarif_level(severity: str) -> str:
-        s = (severity or "").lower()
-        if s in {"error", "critical"}:
-            return "error"
-        if s in {"warning", "warn"}:
-            return "warning"
-        return "note"
-
-    def _write_sarif(self, report: FinalReport, ts: str, repo_root: str) -> str:
-        path = os.path.join(self.output_dir, f"report_{ts}.sarif")
-
-        rule_map: Dict[str, Dict] = {}
-        results = []
-
-        for item in report.reports:
-            raw = item.finding.raw
-            rule_id = raw.defect_id or "CSA.Unknown"
-            if rule_id not in rule_map:
-                rule_map[rule_id] = {
-                    "id": rule_id,
-                    "name": rule_id,
-                    "shortDescription": {"text": rule_id},
-                    "fullDescription": {"text": raw.message or rule_id},
-                    "properties": {"tags": [raw.tool]},
-                }
-
-            uri = self._to_repo_relative(raw.file_path, repo_root)
-            result = {
-                "ruleId": rule_id,
-                "level": self._map_sarif_level(raw.severity),
-                "message": {"text": raw.message or rule_id},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": uri},
-                            "region": {
-                                "startLine": max(1, int(raw.line or 1)),
-                                "startColumn": max(1, int(raw.column or 1)),
-                            },
-                        }
-                    }
-                ],
-                "properties": {
-                    "tool": raw.tool,
-                    "verdict": item.verdict,
-                    "confidence": item.confidence,
-                    "cwe": raw.cwe or "",
-                },
-            }
-            results.append(result)
-
-        notifications = []
-        for failure in report.analyzer_failures:
-            notifications.append(
-                {
-                    "level": "warning",
-                    "message": {
-                        "text": f"{failure.analyzer} failed for {failure.file_path}: {failure.error_summary}"
-                    },
-                }
-            )
-
-        sarif = {
-            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "version": "2.1.0",
-            "runs": [
-                {
-                    "tool": {
-                        "driver": {
-                            "name": "CSAagent",
-                            "version": "1.0.0",
-                            "informationUri": "https://github.com/maincourses/CSAagent",
-                            "rules": list(rule_map.values()),
-                        }
-                    },
-                    "results": results,
-                    "invocations": [
-                        {
-                            "executionSuccessful": len(report.analyzer_failures) == 0,
-                            "toolExecutionNotifications": notifications,
-                        }
-                    ],
-                }
-            ],
-        }
-
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(sarif, f, ensure_ascii=False, indent=2)
         return path
 
     def _report_to_dict(self, r: DefectReport) -> dict:

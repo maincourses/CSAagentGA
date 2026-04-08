@@ -5,7 +5,6 @@ DefectAware - C/C++ defect detection and verification tool (CSA only)
 import argparse
 import json
 import os
-import shutil
 import sys
 from typing import List
 
@@ -74,7 +73,7 @@ def main():
     parser.add_argument(
         "--output-format",
         nargs="+",
-        choices=["json", "html", "csv", "sarif"],
+        choices=["json", "html", "csv"],
         default=None,
         help="report output formats; default from config.report.formats",
     )
@@ -82,11 +81,6 @@ def main():
         "--output-dir",
         default="",
         help="report output directory; default from config.report.output_dir",
-    )
-    parser.add_argument(
-        "--sarif-out",
-        default="",
-        help="optional fixed SARIF output path; copies generated SARIF there",
     )
     parser.add_argument(
         "--summary-json",
@@ -156,19 +150,11 @@ def main():
     output_formats = _resolve_output_formats(args, cfg)
 
     generator = ReportGenerator(output_dir)
-    files = generator.generate(report, output_formats, repo_root=args.src_dir)
+    files = generator.generate(report, output_formats)
     print("\nReports generated:")
     for f in files:
         print(f"  {f}")
         print(f"REPORT_FILE={os.path.abspath(f)}")
-
-    sarif_generated = next((f for f in files if f.lower().endswith(".sarif")), "")
-    if args.sarif_out and sarif_generated:
-        os.makedirs(os.path.dirname(os.path.abspath(args.sarif_out)), exist_ok=True)
-        shutil.copyfile(sarif_generated, args.sarif_out)
-        print(f"SARIF_FILE={os.path.abspath(args.sarif_out)}")
-    elif sarif_generated:
-        print(f"SARIF_FILE={os.path.abspath(sarif_generated)}")
 
     tp_gate, uc_gate = _count_verdicts(report, args.fail_confidence)
     should_fail = _should_fail(report, args.fail_on, args.fail_confidence)
@@ -187,9 +173,6 @@ def main():
         "gated_uncertain": uc_gate,
         "should_fail": should_fail,
         "generated_files": [os.path.abspath(f) for f in files],
-        "sarif_file": os.path.abspath(args.sarif_out)
-        if args.sarif_out and sarif_generated
-        else (os.path.abspath(sarif_generated) if sarif_generated else ""),
     }
 
     if args.summary_json:

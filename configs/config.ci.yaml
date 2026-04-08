@@ -31,4 +31,4 @@ analysis:
 
 report:
   output_dir: "data/reports"
-  formats: ["json", "sarif"]
+  formats: ["json", "html"]

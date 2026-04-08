@@ -1,5 +1,5 @@
 name: "CSAagent Defect Scan"
-description: "Run CSAagent on a repository and emit JSON/SARIF reports."
+description: "Run CSAagent on a repository and emit JSON/HTML reports."
 author: "maincourses"
 
 inputs:
@@ -20,9 +20,9 @@ inputs:
     required: false
     default: "data/reports"
   output-format:
-    description: "Formats separated by spaces or commas, e.g. 'json sarif'."
+    description: "Formats separated by spaces or commas, e.g. 'json html'."
     required: false
-    default: "json sarif"
+    default: "json html"
   fail-on:
     description: "Fail policy: never|true_positive|uncertain|analyzer_failure|true_positive_or_uncertain|any_issue"
     required: false
@@ -40,9 +40,9 @@ outputs:
   json-report:
     description: "Path to latest JSON report file."
     value: ${{ steps.run.outputs.json-report }}
-  sarif-report:
-    description: "Path to latest SARIF report file."
-    value: ${{ steps.run.outputs.sarif-report }}
+  html-report:
+    description: "Path to latest HTML report file."
+    value: ${{ steps.run.outputs.html-report }}
   summary-json:
     description: "Path to machine-readable summary JSON."
     value: ${{ steps.run.outputs.summary-json }}
@@ -106,8 +106,8 @@ runs:
         "${CMD[@]}"
 
         JSON_REPORT="$(ls -1t "${OUT_DIR}"/report_*.json 2>/dev/null | head -n1 || true)"
-        SARIF_REPORT="$(ls -1t "${OUT_DIR}"/report_*.sarif 2>/dev/null | head -n1 || true)"
+        HTML_REPORT="$(ls -1t "${OUT_DIR}"/report_*.html 2>/dev/null | head -n1 || true)"
 
         echo "json-report=${JSON_REPORT}" >> "${GITHUB_OUTPUT}"
-        echo "sarif-report=${SARIF_REPORT}" >> "${GITHUB_OUTPUT}"
+        echo "html-report=${HTML_REPORT}" >> "${GITHUB_OUTPUT}"
         echo "summary-json=${SUMMARY_FILE}" >> "${GITHUB_OUTPUT}"
