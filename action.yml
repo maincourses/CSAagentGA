@@ -56,58 +56,68 @@ runs:
         python-version: "3.11"
 
     - name: Install Dependencies
-      shell: bash
+      shell: powershell
       run: |
-        set -euo pipefail
+        $ErrorActionPreference = 'Stop'
         python -m pip install --upgrade pip
         python -m pip install -r "${{ github.action_path }}/requirements.txt"
 
     - name: Run CSAagent
       id: run
-      shell: bash
+      shell: powershell
       env:
         API_KEY: ${{ inputs.api-key }}
       run: |
-        set -euo pipefail
-        SRC_DIR="${{ inputs.src-dir }}"
-        OUT_DIR="${{ inputs.output-dir }}"
-        SUMMARY_FILE="${OUT_DIR}/csa_summary.json"
+        $ErrorActionPreference = 'Stop'
 
-        if [ -z "${{ inputs.config }}" ]; then
-          CONFIG_PATH="${{ github.action_path }}/configs/config.ci.yaml"
-        else
-          CONFIG_PATH="${{ inputs.config }}"
-        fi
+        $srcDir = "${{ inputs.src-dir }}"
+        $outDir = "${{ inputs.output-dir }}"
+        $summaryFile = Join-Path $outDir "csa_summary.json"
 
-        mkdir -p "${OUT_DIR}"
+        $configInput = "${{ inputs.config }}"
+        if ([string]::IsNullOrWhiteSpace($configInput)) {
+          $configPath = "${{ github.action_path }}/configs/config.ci.yaml"
+        } else {
+          $configPath = $configInput
+        }
 
-        FORMAT_RAW="${{ inputs.output-format }}"
-        FORMAT_RAW="${FORMAT_RAW//,/ }"
-        read -r -a FORMATS <<< "${FORMAT_RAW}"
+        New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-        CMD=(
-          python "${{ github.action_path }}/main.py" "${SRC_DIR}"
-          --config "${CONFIG_PATH}"
-          --output-dir "${OUT_DIR}"
-          --summary-json "${SUMMARY_FILE}"
-          --ci
-          --fail-on "${{ inputs.fail-on }}"
-          --fail-confidence "${{ inputs.fail-confidence }}"
+        $formatsRaw = "${{ inputs.output-format }}" -replace ',', ' '
+        $formats = $formatsRaw -split '\s+' | Where-Object { $_ -ne '' }
+
+        $args = @(
+          "${{ github.action_path }}/main.py", $srcDir,
+          "--config", $configPath,
+          "--output-dir", $outDir,
+          "--summary-json", $summaryFile,
+          "--ci",
+          "--fail-on", "${{ inputs.fail-on }}",
+          "--fail-confidence", "${{ inputs.fail-confidence }}"
         )
 
-        if [ -n "${{ inputs.compile-commands }}" ]; then
-          CMD+=(--compile-commands "${{ inputs.compile-commands }}")
-        fi
+        $compileCommands = "${{ inputs.compile-commands }}"
+        if (-not [string]::IsNullOrWhiteSpace($compileCommands)) {
+          $args += @("--compile-commands", $compileCommands)
+        }
 
-        if [ "${#FORMATS[@]}" -gt 0 ]; then
-          CMD+=(--output-format "${FORMATS[@]}")
-        fi
+        if ($formats.Count -gt 0) {
+          $args += @("--output-format")
+          $args += $formats
+        }
 
-        "${CMD[@]}"
+        & python @args
 
-        JSON_REPORT="$(ls -1t "${OUT_DIR}"/report_*.json 2>/dev/null | head -n1 || true)"
-        HTML_REPORT="$(ls -1t "${OUT_DIR}"/report_*.html 2>/dev/null | head -n1 || true)"
+        $jsonReport = Get-ChildItem -Path $outDir -Filter "report_*.json" -ErrorAction SilentlyContinue |
+          Sort-Object LastWriteTime -Descending |
+          Select-Object -First 1 -ExpandProperty FullName
+        if ($null -eq $jsonReport) { $jsonReport = "" }
 
-        echo "json-report=${JSON_REPORT}" >> "${GITHUB_OUTPUT}"
-        echo "html-report=${HTML_REPORT}" >> "${GITHUB_OUTPUT}"
-        echo "summary-json=${SUMMARY_FILE}" >> "${GITHUB_OUTPUT}"
+        $htmlReport = Get-ChildItem -Path $outDir -Filter "report_*.html" -ErrorAction SilentlyContinue |
+          Sort-Object LastWriteTime -Descending |
+          Select-Object -First 1 -ExpandProperty FullName
+        if ($null -eq $htmlReport) { $htmlReport = "" }
+
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "json-report=$jsonReport"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "html-report=$htmlReport"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "summary-json=$summaryFile"
