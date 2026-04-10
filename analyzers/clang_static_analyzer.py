@@ -397,9 +397,6 @@ class ClangStaticAnalyzer(BaseAnalyzer):
             raw_args = arguments[1:]
         else:
             command = entry.get("command", "")
-            # Keep original token boundaries for Windows CL/clang-cl command lines.
-            # compile_commands "command" often stores escaped quotes (e.g. \"...\"),
-            # normalize them back to plain quotes so -DVALUE="..." keeps valid C/C++ syntax.
             raw_args = (
                 [a.replace('\\"', '"') for a in shlex.split(command, posix=False)][1:]
                 if command
@@ -412,6 +409,11 @@ class ClangStaticAnalyzer(BaseAnalyzer):
             if skip_next:
                 skip_next = False
                 continue
+
+            # stop before linker args; analyzer compile phase should not include them
+            if arg == "--" or arg.lower() == "/link":
+                break
+
             if arg in ("-o", "-MF", "-MT", "-MQ"):
                 skip_next = True
                 continue
@@ -419,6 +421,7 @@ class ClangStaticAnalyzer(BaseAnalyzer):
                 continue
             if arg == file_path:
                 continue
+
             filtered.append(arg)
 
         return filtered
