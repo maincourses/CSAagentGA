@@ -119,7 +119,9 @@ class ClangStaticAnalyzer(BaseAnalyzer):
 
             if not file_path or not check_name:
                 continue
-            if self.checkers and check_name not in self.checkers:
+            # Only filter by checker name when an explicit checker allowlist is provided.
+            # Sentinel "__ALL__" means broad enablement without post-parse filtering.
+            if self.checkers and "__ALL__" not in self.checkers and check_name not in self.checkers:
                 continue
 
             severity = "error" if category in _ERROR_CATEGORIES else "warning"
@@ -250,11 +252,18 @@ class ClangStaticAnalyzer(BaseAnalyzer):
         return plist_paths
 
     def _build_checker_args(self, is_clang_cl: bool) -> List[str]:
-        """
-        Checker selection is currently implemented as result filtering only.
-        Keep this method so we can later pass checker flags to clang itself.
-        """
-        return []
+        """Build checker flags passed to clang static analyzer."""
+        if not self.checkers:
+            return []
+
+        # Special sentinel to enable a broad checker set, including alpha.
+        if len(self.checkers) == 1 and self.checkers[0] == "__ALL__":
+            checker_expr = "core,cplusplus,deadcode,nullability,optin,security,unix,valist,alpha"
+        else:
+            checker_expr = ",".join(self.checkers)
+
+        opt = f"-analyzer-checker={checker_expr}"
+        return ["-Xclang", opt] if is_clang_cl else ["-Xanalyzer", opt]
 
     @staticmethod
     def _extract_include_trace(lines: List[str]) -> List[str]:
@@ -451,3 +460,4 @@ class ClangStaticAnalyzer(BaseAnalyzer):
                 }
             )
         return result
+
