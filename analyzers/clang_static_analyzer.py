@@ -62,12 +62,14 @@ class ClangStaticAnalyzer(BaseAnalyzer):
         file_extensions: List[str] = None,
         skip_dirs: List[str] = None,
         checkers: List[str] = None,
+        show_failures: bool = False,
     ):
         self.clang_path = clang_path
         self.extra_args = extra_args or []
         self.file_extensions = set(file_extensions) if file_extensions else (_CPP_EXTS | _C_EXTS)
         self.skip_dirs = set(skip_dirs) if skip_dirs else _DEFAULT_SKIP_DIRS
         self.checkers = checkers or []
+        self.show_failures = show_failures
         self.last_failures: List[AnalyzerFailure] = []
 
     @staticmethod
@@ -199,12 +201,13 @@ class ClangStaticAnalyzer(BaseAnalyzer):
 
         if failed:
             self.last_failures.extend(failed)
-            print(f"      [警告] 以下文件分析失败（共 {len(failed)} 个）：")
-            for failure in failed:
-                print(
-                    f"        - {os.path.basename(failure.file_path)} "
-                    f"[{failure.error_category}]: {failure.error_summary}"
-                )
+            if self.show_failures:
+                print(f"      [警告] 以下文件分析失败（共 {len(failed)} 个）：")
+                for failure in failed:
+                    print(
+                        f"        - {os.path.basename(failure.file_path)} "
+                        f"[{failure.error_category}]: {failure.error_summary}"
+                    )
 
         return plist_paths
 
@@ -244,10 +247,11 @@ class ClangStaticAnalyzer(BaseAnalyzer):
                         return_code=result.returncode,
                     )
                     self.last_failures.append(failure)
-                    print(
-                        f"      [警告] {os.path.basename(file_path)} "
-                        f"[{failure.error_category}]: {failure.error_summary}"
-                    )
+                    if self.show_failures:
+                        print(
+                            f"      [警告] {os.path.basename(file_path)} "
+                            f"[{failure.error_category}]: {failure.error_summary}"
+                        )
 
         return plist_paths
 

@@ -39,16 +39,13 @@ class ReportGenerator:
             "summary": {
                 "total_raw_findings": report.total_raw_findings,
                 "total_analyzed": report.total_analyzed,
-                "analyzer_failure_count": len(report.analyzer_failures),
                 "true_positives": report.true_positives,
                 "false_positives": report.false_positives,
                 "uncertain": report.uncertain,
                 "false_positive_rate": round(report.false_positive_rate, 4),
                 "tool_stats": report.tool_stats,
-                "analyzer_failure_stats": report.analyzer_failure_stats,
             },
             "findings": [self._report_to_dict(r) for r in report.reports],
-            "analysis_failures": [self._failure_to_dict(f) for f in report.analyzer_failures],
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -205,7 +202,7 @@ class ReportGenerator:
             })
 
         findings_meta_js = json.dumps(meta_items, ensure_ascii=False)
-        failure_section = self._build_failure_section(report)
+        failure_section = ""
 
         html = f"""<!DOCTYPE html>
 <html lang="zh-CN">

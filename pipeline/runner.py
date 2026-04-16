@@ -21,9 +21,14 @@ class Runner:
         llm_cfg = self.cfg.get("llm", {})
         agent_cfg = self.cfg.get("agent", {})
         analysis_cfg = self.cfg.get("analysis", {})
+        report_cfg = self.cfg.get("report", {})
 
         libclang_path = tools_cfg.get("libclang_path", "")
         compile_args = analysis_cfg.get("compile_args", ["-std=c++17"])
+        self.show_analyzer_failures = (
+            analysis_cfg.get("show_analyzer_failures", False)
+            or report_cfg.get("show_analyzer_failures", False)
+        )
 
         self.analyzers = []
         if tools_cfg.get("clang_sa"):
@@ -38,6 +43,7 @@ class Runner:
                     skip_dirs=skip_dirs,
                     file_extensions=file_exts,
                     checkers=checkers,
+                    show_failures=self.show_analyzer_failures,
                 )
             )
 
@@ -49,7 +55,7 @@ class Runner:
         print("[1/4] Running Clang Static Analyzer...")
         raw_findings, analyzer_failures = self._run_analyzers(src_dir, compile_commands)
         print(f"      Raw findings: {len(raw_findings)}")
-        if analyzer_failures:
+        if analyzer_failures and self.show_analyzer_failures:
             print(f"      Analyzer failures: {len(analyzer_failures)}")
 
         print("[2/4] Deduplicating findings...")
